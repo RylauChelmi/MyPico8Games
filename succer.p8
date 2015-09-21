@@ -53,6 +53,20 @@ smokes = {}
 flowers = {}
 clouds = {}
 
+noinput=false
+
+field =
+{
+	w = 256,
+ h = 368
+}
+
+penalty = 
+{ 
+ w = 128,
+ h = 60
+}
+
 game_screen =
 {
  update = function()
@@ -79,6 +93,12 @@ function draw_ball(b)
 end
 
 
+function jersey_color(f)
+	pal(8, f.teamcolors[1])
+	pal(2, f.teamcolors[2])
+end
+
+
 function draw_footballer(f)
  local animspr = f.lastspr
  local	animflip = f.lastflip
@@ -87,6 +107,8 @@ function draw_footballer(f)
  local anim_end = 1
  local dirx =	f.dirx
 	local diry = f.diry
+
+ jersey_color(f)
 
  if (f.vel>0.1) then
  	animfactor = 4
@@ -152,7 +174,7 @@ function footer_sprite_pos(f)
 end
 
 
-function create_footballer()
+function create_footballer(i)
 	f = {}
 	f.x = 64
 	f.y = 64
@@ -169,7 +191,12 @@ function create_footballer()
 	f.damp = 0.9
 	f.lastflip = false
 	f.justshot = false
-	
+	if (i%2==0) then
+		f.teamcolors = {8,2}
+	else
+		f.teamcolors = {12,13}
+	end
+
 	f.draw = function(fo)
 	 fo.state.draw(fo) 
  end
@@ -184,7 +211,7 @@ function create_footballer()
 	f.set_state=function(fo,st)
 	 fo.state = st
 	 if (st.start != nil) then
-   st.start(st)
+   st.start(fo)
   end
  end
 
@@ -276,6 +303,12 @@ function create_player(i)
 end
 
 
+function distance(a, b)
+	local d={x = a.x-b.x, y = a.y-b.y}
+ return sqrt(d.x*d.x + d.y*d.y)
+end
+
+
 function kick(p)
  -- direction
  local x = 0
@@ -297,7 +330,7 @@ end
 
 
 function tackle(p)
-	p.man.set_state(p.man, state_tackle)
+	p.man.set_state(p.man, create_state_tackle())
 end
 
 
@@ -315,7 +348,14 @@ end
 function player_input(p)
 	if (p.man.state.input != nil) then
   p.man.state.input(p)
+ else
  end
+end
+
+
+function damp(man)
+ man.dx *= man.damp
+ man.dy *= man.damp
 end
 
 
@@ -324,8 +364,7 @@ function ok_input(p)
  local man = p.man
  local vel_inc = 0.2
 
- man.dx *= man.damp
- man.dy *= man.damp
+ damp(man)
 
 	if (btn(0,p.num)) man.dx -= vel_inc
 	if (btn(1,p.num)) man.dx += vel_inc
@@ -336,8 +375,11 @@ function ok_input(p)
 		p.but = min(p.but+1, 20)
  else if p.but > 0 then
    button_released(p)
+   return
   end
  end
+
+ noinput=true
 
  vel = sqrt(man.dx*man.dx + man.dy*man.dy)
  man.vel = vel
@@ -352,14 +394,17 @@ function ok_input(p)
 		man.lastdx = man.dx
 		man.lastdy = man.dy
  end
+end
 
+
+function footer_physics(man)
  local newposx = man.x+man.dx
  local newposy = man.y+man.dy
- if (newposx < 0 or newposx > 127) then
+ if (newposx < 0 or newposx > field.w) then
  	newposx = man.x 
  	man.dx = 0
  end
- if (newposy < 0 or newposy > 127) then
+ if (newposy < 0 or newposy > field.h) then
  	newposy = man.y
  	man.dy = 0
  end
@@ -372,6 +417,7 @@ function man_update(f)
 	if (f.state.update != nil) then
   f.state.update(f)
  end
+ footer_physics(f)
 end
 
 
@@ -399,10 +445,23 @@ title_screen =
 
  draw = function(this)
   --cls()
-  for y=0,128,32 do
+
+  dball = ball.y % 32;
+
+  for y=32-dball,128,32 do
    rectfill(0,y,127,y+16,3)
    rectfill(0,y+16,127,y+32,11)
   end
+
+  camera(ball.x-64, ball.y-64)
+  --clip(ball.x-64, ball.y-64,128,128)
+
+  color(7)
+  rect(0, 0, field.w, field.h)
+  line(0, field.h/2, field.w, field.h/2)
+  rect((field.w - penalty.w)/2, 0, field.w - penalty.w, penalty.h)
+  rect((field.w - penalty.w)/2, field.h-penalty.h, field.w - penalty.w, field.h)
+  circ(field.w/2, field.h/2, 30)
 
   local draw_list = {}
   add(draw_list, ball)
@@ -426,15 +485,17 @@ title_screen =
 
   palt()
 
-	 line = 0;
-	 print(players[1].but, 0, line, 7) line +=7
-	 --print(touch_ball(players[1].man), 0, line, 7) line +=7
- 	print(#draw_list, 0, line, 7)  line +=7
+	 local lin = 0;
+	 print(players[1].but, 0, lin, 7) lin +=7
+	 --print(touch_ball(players[1].man), 0, lin, 7) lin +=7
+ 	print(#draw_list, 0, lin, 7)  lin +=7
 	 --for i in all(draw_list) do
-	 --	print(i.y, 0, line, 7)  line +=7
+	 --	print(i.y, 0, lin, 7)  lin +=7
   for i in all(men) do
-  	print(i.state.name, 0, line, 7)  line +=7
+  	print(i.state.name, 0, lin, 7)  lin +=7
 	 end
+	 print(noinput, 0, lin, 7)  lin +=7
+	 noinput=false
  end
 }
 
@@ -460,7 +521,7 @@ function _init()
 	create_player(1)
 
  for i=0,1 do
-		local man = create_footballer()
+		local man = create_footballer(i)
 		man.x += 10 * i
 		add(men,man)
  	players[1+i].man = man
@@ -543,8 +604,8 @@ state_touch =
 
 state_ok =
 {	
-	start=nil,
 	name = "ok",
+	start=nil,
 	input=ok_input,
  draw=draw_footballer,
  update=nil
@@ -553,35 +614,93 @@ state_ok =
 state_down =
 {	
 	 name = "down",
-	 input=nil
+		timer = 0,
+	 input=nil,
+
+		start=function(f)
+	 	this=f.state
+		 this.timer=45
+	 end,
+
+	 draw=function(f)
+	  local down_spr = 37
+	  local pos = footer_sprite_pos(f)
+			jersey_color(f)
+	  spr(down_spr+f.lastspr, pos.x, pos.y, 1, 1, f.lastflip)
+	  --print(f.dirx.." "..f.diry, 30, 30, 10)
+	  --print(f.dx.." "..f.dy, 30, 37, 10)
+	 end,
+
+	 update = function(f)
+		 this.timer-=1
+		 if (this.timer==0) then
+		 	f.set_state(f, state_ok)
+		 else
+		  damp(f)
+		 end
+		end
 }
 
-state_tackle =
-{
-	name = "tackle",
-	this = nil,
-	timer = 0,
+function create_state_tackle()
+	local state_tackle =
+	{
+		name = "tackle",
+		this = nil,
+		timer = 0,
 
-	start=function(_this)
- 	this=_this
-	 this.timer=45
- end,
+		start=function(f)
+	 	this=f.state
+		 this.timer=45
+	  local tacklefactor = 2.0
+	  f.dx += f.dirx*tacklefactor
+	  f.dy += f.diry*tacklefactor
+	 end,
 
- draw=function(f)
-  local tacke_spr = 32
-  local pos = footer_sprite_pos(f)
-  spr(tacke_spr+f.lastspr, pos.x, pos.y, 1, 1, f.lastflip)	
- end,
+	 draw=function(f)
+	  local tackle_spr = 32
+	  local pos = footer_sprite_pos(f)
+	  jersey_color(f)
+	  spr(tackle_spr+f.lastspr, pos.x, pos.y, 1, 1, f.lastflip)
+	  --print(f.dirx.." "..f.diry, 30, 30, 10)
+	  --print(f.dx.." "..f.dy, 30, 37, 10)
+	  print(this.timer, 30, 44, 10)
+	 end,
 
- input=nil,
+	 input=nil,
+	 -- input=function(p)
+	 --  local f = p.man
+ 	-- -- f.dx *= 1.1
+	 -- -- f.dy *= 1.1
+	 --  print("cheese")
+	 -- --nothing
+	 -- end,
 
- update = function(f)
-  this.timer-=1
-  if (this.timer==0) then
-  	f.set_state(f, state_ok)
-  end
- end
-}
+	 update = function(f)
+	  this.timer-=1
+	  if (this.timer<=0) then
+	  	f.set_state(f, state_ok)
+	  else
+	   damp(f)
+	   -- check collision
+	   for m in all(men) do
+	   	check_tackle(f, m)
+    end
+	  end
+	 end
+	}
+	return state_tackle
+end
+
+
+function check_tackle(tackler,other)
+	if (tackler != other) then
+		local dist = distance(tackler, other)
+		local tackle_dist = 5
+		if (dist < tackle_dist) then
+			other.set_state(other, state_down)
+		end		
+	end
+end
 
 
 function _update()
@@ -591,13 +710,13 @@ end
 
 function debug_draw()
 	color(7)
-	local line = 0
- --print("on_ground ", 0, line)
- --print(player.on_ground, 10*4, line) line+=7
- --print(player.x.." "..player.y, 0, line) line+=7 
- --print(player.dx.." "..player.dy, 0, line) line+=7 
- print("#monster_spawns="..#monster_spawns, 0, line) line+=7
- print("#monster="..monsters_nb, 0, line) line+=7
+	local lin = 0
+ --print("on_ground ", 0, lin)
+ --print(player.on_ground, 10*4, lin) lin+=7
+ --print(player.x.." "..player.y, 0, lin) lin+=7 
+ --print(player.dx.." "..player.dy, 0, lin) lin+=7 
+ print("#monster_spawns="..#monster_spawns, 0, lin) lin+=7
+ print("#monster="..monsters_nb, 0, lin) lin+=7
 	end
 
 

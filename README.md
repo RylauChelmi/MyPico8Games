@@ -1,5 +1,5 @@
-[My Pico-8 games]
-=================
+My Pico-8 games
+===============
 
 No Name Yet
 -----------
